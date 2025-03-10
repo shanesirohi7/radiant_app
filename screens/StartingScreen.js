@@ -33,51 +33,51 @@ export default function StartingScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingVertical: 50,
+      flex: 1,
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: '#fff', // Changed background to white
+      paddingVertical: 50,
   },
   textContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      flex: 1,
   },
   title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
+      fontSize: 36,
+      fontWeight: 'bold',
+      color: '#333', // Changed title color
+      textAlign: 'center',
   },
   subtitle: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#a29bfe',
-    textAlign: 'center',
-    marginTop: 10,
+      fontSize: 32,
+      fontWeight: '600',
+      color: '#5271FF', // Changed subtitle color
+      textAlign: 'center',
+      marginTop: 10,
   },
   description: {
-    fontSize: 16,
-    color: '#bbb',
-    marginTop: 20,
-    textAlign: 'center',
+      fontSize: 16,
+      color: '#777', // Changed description color
+      marginTop: 20,
+      textAlign: 'center',
   },
   button: {
-    backgroundColor: '#6c5ce7',
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    marginBottom: 40,
-    shadowColor: '#6c5ce7',
-    shadowOpacity: 0.8,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 8,
+      backgroundColor: '#5271FF', // Changed button color
+      paddingVertical: 15,
+      paddingHorizontal: 40,
+      borderRadius: 30,
+      marginBottom: 40,
+      shadowColor: '#5271FF', // Changed shadow color
+      shadowOpacity: 0.5, // Reduced shadow opacity
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 10,
+      elevation: 5, // Reduced elevation
   },
   buttonText: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: 'bold',
+      fontSize: 18,
+      color: '#fff',
+      fontWeight: 'bold',
   },
 });

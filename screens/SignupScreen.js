@@ -94,55 +94,56 @@ export default function SignupScreen({ navigation }) {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    padding: 20,
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#fff', // Changed background to white
+      padding: 20,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: '#333', // Changed title color
+      marginBottom: 10,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#888',
-    marginBottom: 30,
+      fontSize: 18,
+      color: '#777', // Changed subtitle color
+      marginBottom: 30,
   },
   input: {
-    width: '100%',
-    backgroundColor: '#1a1a1a',
-    padding: 15,
-    borderRadius: 20,
-    marginVertical: 10,
-    color: '#fff',
-    fontSize: 16,
+      width: '100%',
+      backgroundColor: '#f0f0f0', // Light background for input
+      padding: 15,
+      borderRadius: 20,
+      marginVertical: 10,
+      color: '#333', // Changed input text color
+      fontSize: 16,
+      borderWidth: 1, // Added border
+      borderColor: '#ddd', // Light border color
   },
   button: {
-    backgroundColor: '#6c5ce7',
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    marginTop: 20,
+      backgroundColor: '#5271FF', // Changed button color
+      paddingVertical: 15,
+      paddingHorizontal: 40,
+      borderRadius: 25,
+      marginTop: 20,
   },
   buttonText: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: 'bold',
+      fontSize: 18,
+      color: '#fff',
+      fontWeight: 'bold',
   },
   orText: {
-    fontSize: 16,
-    color: '#888',
-    marginVertical: 20,
+      fontSize: 16,
+      color: '#888',
+      marginVertical: 20,
   },
   linkText: {
-    fontSize: 16,
-    color: '#6c5ce7',
-    fontWeight: 'bold',
+      fontSize: 16,
+      color: '#5271FF', // Changed link text color
+      fontWeight: 'bold',
   },
 });

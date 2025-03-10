@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "blue",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/logo.png",
@@ -29,6 +29,9 @@
       "eas": {
         "projectId": "449a0bdf-ddd5-48ab-bac8-e9c33a38a705"
       }
-    }
+    },
+    "plugins": [
+      "expo-video"
+    ]
   }
 }

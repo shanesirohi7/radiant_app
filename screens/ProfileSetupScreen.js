@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  StyleSheet,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -87,19 +88,18 @@ const ProfileSetupScreen = ({ navigation, route }) => {
   
     setLoading(true);
     try {
-      const storedToken = await AsyncStorage.getItem("token"); // Ensure token is fresh
+      const storedToken = await AsyncStorage.getItem("token");
       if (!storedToken) {
         Alert.alert("Session Expired", "Please log in again.");
         navigation.replace("LoginScreen");
         return;
       }
   
-      const response = await axios.post(`${API_URL}/setupProfile`, { 
+      const response = await axios.post(`${API_URL}/Profile`, { 
         profilePic, class: selectedClass, section: selectedSection, 
         interests, instagramUsername: instagram 
-      }, { headers: { token } }); // Backend expects 'token' in headers
+      }, { headers: { token } });
       
-  
       console.log("✅ Profile Update Response:", response.data);
       Alert.alert("Success", "Profile updated successfully!");
       navigation.replace("Homepage");
@@ -110,51 +110,156 @@ const ProfileSetupScreen = ({ navigation, route }) => {
       setLoading(false);
     }
   };
-  
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, backgroundColor: "#0D47A1" }}>
-      <Text style={{ color: "#fff", fontSize: 24, fontWeight: "bold", textAlign: "center", marginBottom: 20 }}>
-        Complete Your Profile
-      </Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Complete Your Profile</Text>
       
-      <TouchableOpacity onPress={pickImage} style={{ alignSelf: "center", marginBottom: 20 }}>
+      <TouchableOpacity onPress={pickImage} style={styles.uploadButton}>
         {profilePic ? (
-          <Image source={{ uri: profilePic }} style={{ width: 100, height: 100, borderRadius: 50 }} />
+          <Image source={{ uri: profilePic }} style={styles.profileImage} />
         ) : (
-          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: "#1E88E5", justifyContent: "center", alignItems: "center" }}>
-            <Text style={{ color: "#fff" }}>Upload</Text>
+          <View style={styles.uploadPlaceholder}>
+            <Text style={styles.uploadText}>Upload</Text>
           </View>
         )}
       </TouchableOpacity>
 
-      <Text style={{ color: "#fff", fontSize: 16, marginBottom: 5 }}>Select Class:</Text>
-      <Picker selectedValue={selectedClass} onValueChange={(value) => setSelectedClass(value)} style={{ backgroundColor: "#1976D2", color: "#fff", marginBottom: 10 }}>
-        <Picker.Item label="Select Class" value="" />
-        {["6th", "7th", "8th", "9th", "10th", "11th", "12th"].map((cls) => (
-          <Picker.Item key={cls} label={cls} value={cls} />
-        ))}
-      </Picker>
+      <Text style={styles.label}>Select Class:</Text>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedClass}
+          onValueChange={(value) => setSelectedClass(value)}
+          style={styles.picker}
+          dropdownIconColor="#fff"
+        >
+          <Picker.Item label="Select Class" value="" color="#000" />
+{["6th", "7th", "8th", "9th", "10th", "11th", "12th"].map((cls) => (
+  <Picker.Item key={cls} label={cls} value={cls} color="#000" />
+))} 
+        </Picker> 
+      </View>
 
-      <Text style={{ color: "#fff", fontSize: 16, marginBottom: 5 }}>Select Section:</Text>
-      <Picker selectedValue={selectedSection} onValueChange={(value) => setSelectedSection(value)} style={{ backgroundColor: "#1976D2", color: "#fff", marginBottom: 10 }}>
-        <Picker.Item label="Select Section" value="" />
-        {["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"].map((sec) => (
-          <Picker.Item key={sec} label={sec} value={sec} />
-        ))}
-      </Picker>
+      <Text style={styles.label}>Select Section:</Text>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedSection}
+          onValueChange={(value) => setSelectedSection(value)}
+          style={styles.picker}
+          dropdownIconColor="#fff"
+        >
+          <Picker.Item label="Select Section" value="" color="#000" />
+{["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"].map((sec) => (
+  <Picker.Item key={sec} label={sec} value={sec} color="#000" />
+))}
+        </Picker>
+      </View>
 
-      <Text style={{ color: "#fff", fontSize: 16, marginBottom: 5 }}>Your Interests:</Text>
-      <TextInput value={interests} onChangeText={setInterests} style={{ backgroundColor: "#1976D2", color: "#fff", padding: 10, borderRadius: 5, marginBottom: 10 }} />
+      <Text style={styles.label}>Your Interests:</Text>
+      <TextInput
+        value={interests}
+        onChangeText={setInterests}
+        style={styles.input}
+        placeholderTextColor="#666"
+      />
 
-      <Text style={{ color: "#fff", fontSize: 16, marginBottom: 5 }}>Instagram Username:</Text>
-      <TextInput value={instagram} onChangeText={setInstagram} style={{ backgroundColor: "#1976D2", color: "#fff", padding: 10, borderRadius: 5, marginBottom: 20 }} />
+      <Text style={styles.label}>Instagram Username:</Text>
+      <TextInput
+        value={instagram}
+        onChangeText={setInstagram}
+        style={styles.input}
+        placeholderTextColor="#666"
+      />
 
-      <TouchableOpacity onPress={submitProfile} style={{ backgroundColor: "#64B5F6", padding: 15, borderRadius: 10, alignItems: "center" }}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontSize: 18 }}>Finish</Text>}
+      <TouchableOpacity onPress={submitProfile} style={styles.button}>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Finish</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
 };
 
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: 30,
+      flexGrow: 1,
+      padding: 20,
+      backgroundColor: '#fff', // Changed background to white
+  },
+  title: {
+      color: '#333', // Changed title color
+      fontSize: 32,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 30,
+  },
+  uploadButton: {
+      alignSelf: 'center',
+      marginBottom: 30,
+  },
+  profileImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      borderWidth: 3,
+      borderColor: '#5271FF', // Changed border color
+  },
+  uploadPlaceholder: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: '#f0f0f0', // Changed background color
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 3,
+      borderColor: '#5271FF', // Changed border color
+  },
+  uploadText: {
+      color: '#333', // Changed text color
+      fontSize: 16,
+  },
+  label: {
+      color: '#333', // Changed label color
+      fontSize: 16,
+      marginBottom: 8,
+      marginTop: 16,
+  },
+  pickerContainer: {
+      backgroundColor: '#f0f0f0', // Changed background color
+      borderRadius: 10,
+      marginBottom: 16,
+      borderWidth: 1, // Added border
+      borderColor: '#ddd' // Added border Color.
+  },
+  picker: {
+      color: '#333', // Changed picker text color
+      backgroundColor: '#f0f0f0', // Changed picker background color
+  },
+  input: {
+      backgroundColor: '#f0f0f0', // Changed background color
+      color: '#333', // Changed input text color
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 16,
+      fontSize: 16,
+      borderWidth: 1, // Added border
+      borderColor: '#ddd' // Added border Color
+  },
+  button: {
+      backgroundColor: '#5271FF', // Changed button color
+      padding: 15,
+      borderRadius: 30,
+      alignItems: 'center',
+      marginTop: 20,
+      marginBottom: 30,
+  },
+  buttonText: {
+      color: '#fff',
+      fontSize: 18,
+      fontWeight: 'bold',
+  },
+});
 export default ProfileSetupScreen;
