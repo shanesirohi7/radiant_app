@@ -42,26 +42,37 @@ const App = ({ onLogout }) => {
         const loadUser = async () => {
             const token = await AsyncStorage.getItem('token');
             if (!token) {
-                nav.replace('Login');
-                return;
+              nav.replace('Login');
+              return;
             }
             try {
-                const res = await axios.get(`${API_URL}/profile`, { headers: { token } });
-                setUser(res.data);
-                fetchFriendRequests(token);
-                fetchProfileMemories(token); // Use new function
-                const newSocket = io(API_URL, {
-                    query: { userId: res.data._id },
-                });
-                setSocket(newSocket);
+              const res = await axios.get(`${API_URL}/profile`, { headers: { token } });
+              
+              // Validate user and _id
+              if (!res.data || !res.data._id || res.data._id === 'null') {
+                console.error('Invalid user data:', res.data);
+                Alert.alert('Error', 'Failed to load valid user data.');
+                return;
+              }
+              
+              setUser(res.data);
+              fetchFriendRequests(token);
+              fetchProfileMemories(token);
+              
+              // Only initialize socket if user._id is valid
+              const newSocket = io(API_URL, {
+                query: { userId: res.data._id },
+              });
+              setSocket(newSocket);
+              
             } catch (err) {
-                console.error(err);
-                Alert.alert('Error', 'Failed to load profile');
+              console.error(err);
+              Alert.alert('Error', 'Failed to load profile');
             } finally {
-                setLoading(false);
+              setLoading(false);
             }
-        };
-        loadUser();
+          };
+          loadUser();
     }, []);
 
     useEffect(() => {
