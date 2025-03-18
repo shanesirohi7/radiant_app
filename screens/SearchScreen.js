@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -9,21 +9,24 @@ import {
     Alert,
     ActivityIndicator,
     TextInput,
+    Dimensions,
 } from 'react-native';
-import { Calendar, Search, Lightbulb, UserPlus, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Search, Lightbulb, UserPlus, ChevronDown, ChevronUp, Heart, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import Swiper from 'react-native-deck-swiper';
 
+const { width, height } = Dimensions.get('window');
 const API_URL = 'https://radiantbackend.onrender.com';
 
 export default function SearchScreen() {
     const [activeTab, setActiveTab] = useState('recommendations');
-    const [recommendations, setRecommendations] = useState();
+    const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [token, setToken] = useState(null);
     const navigation = useNavigation();
-    const [friends, setFriends] = useState();
+    const [friends, setFriends] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searchFilters, setSearchFilters] = useState({
@@ -33,6 +36,7 @@ export default function SearchScreen() {
         interests: '',
     });
     const [showFilters, setShowFilters] = useState(false);
+    const swiperRef = useRef(null);
 
     useEffect(() => {
         const fetchToken = async () => {
@@ -45,7 +49,7 @@ export default function SearchScreen() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'recommendations' && token !== null) {
+        if (token && (activeTab === 'recommendations' || activeTab === 'quickmatch')) {
             fetchRecommendations();
             fetchFriends();
         }
@@ -57,16 +61,14 @@ export default function SearchScreen() {
             const response = await axios.get(`${API_URL}/recommendUsers`, {
                 headers: { token },
             });
-            if (Array.isArray(response.data)) {
-                setRecommendations(response.data);
-            } else {
-                console.error('Invalid API response:', response.data);
-                setRecommendations();
-            }
+            const data = Array.isArray(response.data) ? response.data : [];
+            const rejectedUserIds = await getRejectedUserIds();
+            const filteredRecommendations = data.filter(user => !isFriend(user._id) && !rejectedUserIds.includes(user._id));
+            setRecommendations(filteredRecommendations);
         } catch (error) {
             console.error('Error fetching recommendations:', error);
             Alert.alert('Error', 'Failed to fetch recommendations');
-            setRecommendations();
+            setRecommendations([]);
         } finally {
             setLoading(false);
         }
@@ -96,11 +98,7 @@ export default function SearchScreen() {
             fetchFriends();
         } catch (error) {
             console.error('Error sending friend request:', error);
-            if (error.response && error.response.data && error.response.data.error) {
-                Alert.alert('Error', error.response.data.error);
-            } else {
-                Alert.alert('Error', 'Failed to send friend request');
-            }
+            Alert.alert('Error', error.response?.data?.error || 'Failed to send friend request');
         }
     };
 
@@ -113,10 +111,7 @@ export default function SearchScreen() {
         try {
             const response = await axios.get(`${API_URL}/searchUsers`, {
                 headers: { token },
-                params: {
-                    query: searchQuery,
-                    ...searchFilters,
-                },
+                params: { query: searchQuery, ...searchFilters },
             });
             setSearchResults(response.data);
         } catch (error) {
@@ -128,10 +123,58 @@ export default function SearchScreen() {
         }
     };
 
+    const getRejectedUserIds = async () => {
+        try {
+            const rejectedIds = await AsyncStorage.getItem('rejectedUserIds');
+            return rejectedIds ? JSON.parse(rejectedIds) : [];
+        } catch (error) {
+            console.error('Error getting rejected user IDs:', error);
+            return [];
+        }
+    };
+
+    const saveRejectedUserId = async (userId) => {
+        try {
+            const rejectedIds = await getRejectedUserIds();
+            if (!rejectedIds.includes(userId)) {
+                rejectedIds.push(userId);
+                await AsyncStorage.setItem('rejectedUserIds', JSON.stringify(rejectedIds));
+            }
+        } catch (error) {
+            console.error('Error saving rejected user ID:', error);
+        }
+    };
+
+    const renderCard = (card) => (
+        <View style={styles.card}>
+            <Image
+                source={{ uri: card.profilePic }}
+                style={styles.cardImage}
+                resizeMode="cover"
+            />
+            <View style={styles.cardInfo}>
+                <Text style={styles.cardName}>{`${card.name}, 16`}</Text>
+                <Text style={styles.cardQuote}>"La Passion"</Text>
+                <Text style={styles.cardDetail}>
+                    <Text style={styles.detailLabel}>Class & Section: </Text>
+                    {`${card.class} - ${card.section}`}
+                </Text>
+                <Text style={styles.cardDetail}>
+                    <Text style={styles.detailLabel}>Relationship Status: </Text>
+                    Single
+                </Text>
+                <Text style={styles.cardDetail}>
+                    <Text style={styles.detailLabel}>Interests: </Text>
+                    {card.interests.join(', ') || 'Not specified'}
+                </Text>
+            </View>
+        </View>
+    );
+
     const renderTabContent = () => {
+        const quickMatchUsers = recommendations.filter(user => !isFriend(user._id));
+
         switch (activeTab) {
-            case 'events':
-                return <Text style={styles.tabContent}>Events Content</Text>;
             case 'search':
                 return (
                     <View>
@@ -145,7 +188,7 @@ export default function SearchScreen() {
                         />
                         <TouchableOpacity style={styles.filterToggle} onPress={() => setShowFilters(!showFilters)}>
                             <Text style={styles.filterToggleText}>Filters</Text>
-                            {showFilters ? <ChevronUp size={20} color="#fff" /> : <ChevronDown size={20} color="#fff" />}
+                            {showFilters ? <ChevronUp size={20} color="#000" /> : <ChevronDown size={20} color="#000" />}
                         </TouchableOpacity>
                         {showFilters && (
                             <View>
@@ -216,11 +259,7 @@ export default function SearchScreen() {
                 }
                 return (
                     <FlatList
-                        data={
-                            recommendations &&
-                            recommendations.length > 0 &&
-                            recommendations.filter(user => !isFriend(user._id))
-                        }
+                        data={quickMatchUsers}
                         keyExtractor={(item) => item._id}
                         renderItem={({ item }) => (
                             <TouchableOpacity
@@ -239,8 +278,113 @@ export default function SearchScreen() {
                                 >
                                     <UserPlus size={24} color="#fff" />
                                 </TouchableOpacity>
-                            </TouchableOpacity>)}
+                            </TouchableOpacity>
+                        )}
                     />
+                );
+            case 'quickmatch':
+                if (loading) {
+                    return (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#6c5ce7" />
+                        </View>
+                    );
+                }
+                if (quickMatchUsers.length === 0) {
+                    return (
+                        <View style={styles.emptyStateContainer}>
+                            <Text style={styles.noUsersText}>No users available for QuickMatch</Text>
+                        </View>
+                    );
+                }
+                return (
+                    <View style={styles.quickMatchContainer}>
+                        <Swiper
+                            ref={swiperRef}
+                            cards={quickMatchUsers}
+                            renderCard={renderCard}
+                            onSwipedLeft={(index) => {
+                                saveRejectedUserId(quickMatchUsers[index]._id);
+                                console.log('Rejected:', quickMatchUsers[index]);
+                            }}
+                            onSwipedRight={(index) => sendFriendRequest(quickMatchUsers[index]._id)}
+                            onSwipedAll={() => Alert.alert('No more users', 'Check back later!')}
+                            cardIndex={0}
+                            backgroundColor={'transparent'}
+                            stackSize={3}
+                            horizontalSwipe={true}
+                            verticalSwipe={false}
+                            containerStyle={styles.swiperContainer}
+                            cardStyle={styles.swiperCardStyle}
+                            overlayLabels={{
+                                left: {
+                                    title: 'NOPE',
+                                    style: {
+                                        label: {
+                                            backgroundColor: 'rgba(255, 77, 77, 0.8)',
+                                            color: 'white',
+                                            fontSize: 24,
+                                            fontWeight: 'bold',
+                                            padding: 10,
+                                            borderRadius: 5,
+                                        },
+                                        wrapper: {
+                                            flexDirection: 'column',
+                                            alignItems: 'flex-end',
+                                            justifyContent: 'flex-start',
+                                            marginTop: 30,
+                                            marginLeft: -30,
+                                        },
+                                    },
+                                },
+                                right: {
+                                    title: 'LIKE',
+                                    style: {
+                                        label: {
+                                            backgroundColor: 'rgba(82, 113, 255, 0.8)',
+                                            color: 'white',
+                                            fontSize: 24,
+                                            fontWeight: 'bold',
+                                            padding: 10,
+                                            borderRadius: 5,
+                                        },
+                                        wrapper: {
+                                            flexDirection: 'column',
+                                            alignItems: 'flex-start',
+                                            justifyContent: 'flex-start',
+                                            marginTop: 30,
+                                            marginLeft: 30,
+                                        },
+                                    },
+                                },
+                            }}
+                            animateOverlayLabelsOpacity
+                            animateCardOpacity
+                            swipeAnimationDuration={300}
+                        />
+                        <View style={styles.buttonsContainer}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (swiperRef.current) {
+                                        swiperRef.current.swipeLeft();
+                                    }
+                                }}
+                                style={[styles.actionButton, styles.dislikeButton]}
+                            >
+                                <X size={30} color="#fff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (swiperRef.current) {
+                                        swiperRef.current.swipeRight();
+                                    }
+                                }}
+                                style={[styles.actionButton, styles.likeButton]}
+                            >
+                                <Heart size={30} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 );
             default:
                 return null;
@@ -251,25 +395,25 @@ export default function SearchScreen() {
         <View style={styles.container}>
             <View style={styles.tabBar}>
                 <TouchableOpacity
-                    style={[styles.tabButton, activeTab === 'events' && styles.activeTabButton]}
-                    onPress={() => setActiveTab('events')}
+                    style={[styles.tabButton, activeTab === 'quickmatch' && styles.activeTabButton]}
+                    onPress={() => setActiveTab('quickmatch')}
                 >
-                    <Calendar size={24} color="black" />
-                    <Text style={styles.tabButtonText}>Events</Text>
+                    <Heart size={24} color={activeTab === 'quickmatch' ? "#5271FF" : "black"} />
+                    <Text style={[styles.tabButtonText, activeTab === 'quickmatch' && styles.activeTabText]}>QuickMatch</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tabButton, activeTab === 'search' && styles.activeTabButton]}
                     onPress={() => setActiveTab('search')}
                 >
-                    <Search size={24} color="black" />
-                    <Text style={styles.tabButtonText}>Search</Text>
+                    <Search size={24} color={activeTab === 'search' ? "#5271FF" : "black"} />
+                    <Text style={[styles.tabButtonText, activeTab === 'search' && styles.activeTabText]}>Search</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tabButton, activeTab === 'recommendations' && styles.activeTabButton]}
                     onPress={() => setActiveTab('recommendations')}
                 >
-                    <Lightbulb size={24} color="black" />
-                    <Text style={styles.tabButtonText}>Picks</Text>
+                    <Lightbulb size={24} color={activeTab === 'recommendations' ? "#5271FF" : "black"} />
+                    <Text style={[styles.tabButtonText, activeTab === 'recommendations' && styles.activeTabText]}>Picks</Text>
                 </TouchableOpacity>
             </View>
             <View style={styles.contentContainer}>{renderTabContent()}</View>
@@ -280,124 +424,244 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff', // Changed background to white
-        paddingTop: 20, // Adjusted padding
+        backgroundColor: '#f5f5f5',
     },
     tabBar: {
         flexDirection: 'row',
         justifyContent: 'space-around',
-        paddingVertical: 10, // Adjusted padding
+        paddingVertical: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee', // Lightened border color
-        marginHorizontal: 0, // Removed horizontal margin
-        backgroundColor: '#f9f9f9' // added a light background color.
+        borderBottomColor: '#eee',
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 3,
     },
     tabButton: {
         alignItems: 'center',
-        marginHorizontal: 5, // Reduced margin
-        padding: 8, // Added padding to the tab buttons.
+        paddingHorizontal: 16,
+        paddingVertical: 8,
     },
     activeTabButton: {
-        borderBottomWidth: 2,
-        borderBottomColor: '#5271FF', // Changed active tab color
-        paddingBottom: 5, // Adjusted padding
+        borderBottomWidth: 3,
+        borderBottomColor: '#5271FF',
     },
     tabButtonText: {
-        color: '#333', // Changed text color to dark gray
-        marginTop: 3, // Adjusted margin
-        fontSize: 14, // Adjusted font size
+        color: '#333',
+        marginTop: 4,
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    activeTabText: {
+        color: '#5271FF',
+        fontWeight: '600',
     },
     contentContainer: {
         flex: 1,
-        padding: 15, // Adjusted padding
     },
-    tabContent: {
-        color: '#333', // Changed text color
-        fontSize: 16,
-        textAlign: 'center',
-    },
+    // Search tab styles
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    recommendationItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12, // Adjusted padding
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee', // Lightened border color
-        backgroundColor: '#fff', // White background for items
-        borderRadius: 8, // Rounded corners for items
-        marginBottom: 8, // Added margin between items
-        paddingHorizontal: 12, // Added horizontal padding
-    },
-    profilePic: {
-        width: 45, // Adjusted profile pic size
-        height: 45,
-        borderRadius: 22.5,
-        marginRight: 12,
-        borderWidth: 1, // Added border
-        borderColor: '#ddd', // Light border color
-    },
-    userInfo: {
-        flex: 1,
-    },
-    userName: {
-        color: '#333', // Changed text color
-        fontSize: 16,
-        fontWeight: '600', // Added font weight
-    },
-    userClass: {
-        color: '#777', // Changed text color
-        fontSize: 13,
-        marginTop: 2,
-    },
-    userInterests: {
-        color: '#777', // Changed text color
-        fontSize: 13,
-        marginTop: 2,
-    },
-    addButton: {
-        padding: 8,
-        backgroundColor: '#5271FF', // Changed button color
-        borderRadius: 20, // Rounded button
+        padding: 20,
     },
     searchInput: {
-        backgroundColor: '#f0f0f0', // Light background for input
+        backgroundColor: '#fff',
         color: '#333',
-        padding: 12,
-        borderRadius: 8,
+        padding: 15,
+        borderRadius: 10,
         marginBottom: 10,
-        borderWidth: 1, // Added border
-        borderColor: '#ddd', // Light border color
+        borderWidth: 1,
+        borderColor: '#ddd',
+        fontSize: 16,
     },
     searchButton: {
         backgroundColor: '#5271FF',
-        padding: 12,
-        borderRadius: 8,
+        padding: 15,
+        borderRadius: 10,
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
     },
     searchButtonText: {
         color: '#fff',
         fontSize: 16,
-        fontWeight: '600', // Added font weight
+        fontWeight: '600',
     },
     filterToggle: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#f0f0f0',
-        padding: 12,
-        borderRadius: 8,
+        backgroundColor: '#fff',
+        padding: 15,
+        borderRadius: 10,
         marginBottom: 10,
-        borderWidth: 1, // Added border
-        borderColor: '#ddd', // Light border color
+        borderWidth: 1,
+        borderColor: '#ddd',
     },
     filterToggleText: {
         color: '#333',
         fontSize: 16,
-        fontWeight: '600', // Added font weight
+        fontWeight: '500',
+    },
+    // Recommendations tab styles
+    recommendationItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 10,
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    profilePic: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        marginRight: 15,
+        borderWidth: 2,
+        borderColor: '#f0f0f0',
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userName: {
+        color: '#333',
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 3,
+    },
+    userClass: {
+        color: '#666',
+        fontSize: 14,
+        marginBottom: 2,
+    },
+    userInterests: {
+        color: '#666',
+        fontSize: 14,
+    },
+    addButton: {
+        padding: 10,
+        backgroundColor: '#5271FF',
+        borderRadius: 25,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    // QuickMatch tab styles
+    quickMatchContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+    },
+    emptyStateContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    noUsersText: {
+        fontSize: 18,
+        color: '#666',
+        textAlign: 'center',
+    },
+    swiperContainer: {
+        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 90,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    swiperCardStyle: {
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+    },
+    card: {
+        marginLeft: 30,
+        marginTop: 10,
+        borderRadius: 20,
+        backgroundColor: '#fff',
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    cardImage: {
+        width: '100%',
+        height: '60%',
+    },
+    cardInfo: {
+        padding: 20,
+    },
+    cardName: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 5,
+    },
+    cardQuote: {
+        fontSize: 16,
+        fontStyle: 'italic',
+        color: '#555',
+        marginBottom: 15,
+        borderLeftWidth: 3,
+        borderLeftColor: '#5271FF',
+        paddingLeft: 10,
+    },
+    cardDetail: {
+        fontSize: 16,
+        color: '#333',
+        marginBottom: 8,
+    },
+    detailLabel: {
+        fontWeight: '600',
+        color: '#333',
+    },
+    buttonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: width * 0.5,
+        position: 'absolute',
+        bottom: 30,
+        alignSelf: 'center',
+    },
+    actionButton: {
+        width: 65,
+        height: 65,
+        borderRadius: 32.5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    likeButton: {
+        backgroundColor: '#5271FF',
+    },
+    dislikeButton: {
+        backgroundColor: '#ff4d4d',
     },
 });

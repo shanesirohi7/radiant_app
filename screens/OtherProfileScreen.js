@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity, FlatList } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserPlus } from 'lucide-react-native';
+
 const API_URL = 'https://radiantbackend.onrender.com';
 
 export default function OtherProfileScreen({ navigation, route }) {
@@ -10,8 +10,10 @@ export default function OtherProfileScreen({ navigation, route }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isFriend, setIsFriend] = useState(false);
-    const [friends, setFriends] = useState();
-    const [token, setToken] = useState(null);
+    const [friends, setFriends] = useState([]);
+    const [createdMemories, setCreatedMemories] = useState([]);
+    const [taggedMemories, setTaggedMemories] = useState([]);
+
     useEffect(() => {
         const loadOtherProfile = async () => {
             try {
@@ -21,6 +23,12 @@ export default function OtherProfileScreen({ navigation, route }) {
                 const token = await AsyncStorage.getItem('token');
                 const friendsResponse = await axios.get(`${API_URL}/getFriends`, { headers: { token } });
                 setFriends(friendsResponse.data);
+
+                // Fetch created and tagged memories
+                const userDetailsResponse = await axios.get(`${API_URL}/userDetails/${userId}`);
+                setCreatedMemories(userDetailsResponse.data.createdMemories || []);
+                setTaggedMemories(userDetailsResponse.data.taggedMemories || []);
+
             } catch (error) {
                 console.error('Error fetching other profile or friends:', error);
                 if (error.response) {
@@ -34,10 +42,10 @@ export default function OtherProfileScreen({ navigation, route }) {
                 setLoading(false);
             }
         };
-         
 
         loadOtherProfile();
     }, [userId]);
+
     const sendFriendRequest = async (friendId) => {
         const token = await AsyncStorage.getItem('token');
         try {
@@ -56,7 +64,18 @@ export default function OtherProfileScreen({ navigation, route }) {
             }
         }
     };
-    
+
+    const renderMemoryGridItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.memoryGridItem}
+            onPress={() => navigation.navigate('MemoryDetailScreen', { memory: item })}
+        >
+            <Text style={styles.memoryGridTitle}>{item.title}</Text>
+            <Text style={styles.memoryGridUsers}>
+                Tagged: {item.taggedFriends?.map(friend => friend.name).join(', ')}
+            </Text>
+        </TouchableOpacity>
+    );
 
     if (loading) {
         return (
@@ -76,7 +95,6 @@ export default function OtherProfileScreen({ navigation, route }) {
 
     return (
         <ScrollView style={styles.container}>
-            {/* Profile Info Section */}
             <View style={styles.profileContainer}>
                 <Image
                     source={{ uri: user?.profilePic || 'https://via.placeholder.com/150' }}
@@ -85,13 +103,12 @@ export default function OtherProfileScreen({ navigation, route }) {
                 <Text style={styles.userName}>{user?.name || 'User'}</Text>
                 <Text style={styles.friendCount}>{user?.friends?.length || 0} Friends</Text>
                 {isFriend ? <Text style={styles.friendText}>Friend</Text> : (
-                    <TouchableOpacity style={styles.addButton} onPress={sendFriendRequest}>
+                    <TouchableOpacity style={styles.addButton} onPress={() => sendFriendRequest(userId)}>
                         <Text style={styles.buttonText}>Add Friend</Text>
                     </TouchableOpacity>
                 )}
             </View>
 
-            {/* Details Section */}
             <View style={styles.detailsContainer}>
                 <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>School</Text>
@@ -118,158 +135,65 @@ export default function OtherProfileScreen({ navigation, route }) {
                     </View>
                 </View>
             </View>
+
             <View style={styles.statsContainer}>
-                    <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>{user?.memories?.length || 0}</Text>
-                      <Text style={styles.statLabel}>Memories</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                      <Text style={styles.statNumber}>{user?.friends?.length || 0}</Text>
-                      <Text style={styles.statLabel}>Friends</Text>
-                    </View>
-                  </View>
+                <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{createdMemories.length + taggedMemories.length}</Text>
+                    <Text style={styles.statLabel}>Memories</Text>
+                </View>
+                <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{user?.friends?.length || 0}</Text>
+                    <Text style={styles.statLabel}>Friends</Text>
+                </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Memories Created</Text>
+            <FlatList
+                data={createdMemories}
+                renderItem={renderMemoryGridItem}
+                keyExtractor={(item) => item._id}
+                numColumns={2}
+                style={styles.memoryGridContainer}
+            />
+
+            <Text style={styles.sectionTitle}>Memories Tagged In</Text>
+            <FlatList
+                data={taggedMemories}
+                renderItem={renderMemoryGridItem}
+                keyExtractor={(item) => item._id}
+                numColumns={2}
+                style={styles.memoryGridContainer}
+            />
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-    },
-    loadingText: {
-        color: '#333',
-        fontSize: 16,
-    },
-    header: {
-        padding: 20,
-        paddingTop: 40,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-    },
-    addButton: {
-        marginTop: 5,
-        backgroundColor: '#5271FF',
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    settingsButton: {
-        padding: 8,
-        backgroundColor: '#f0f0f0',
-        borderRadius: 20,
-    },
-    profileContainer: {
-        alignItems: 'center',
-        padding: 20,
-    },
-    profilePic: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 3,
-        borderColor: '#5271FF',
-        marginBottom: 15,
-    },
-    userName: {
-        color: '#333',
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 5,
-    },
-    friendCount: {
-        color: '#777',
-        fontSize: 16,
-    },
-    detailsContainer: {
-        padding: 20,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 15,
-        marginHorizontal: 15,
-        marginBottom: 20,
-    },
-    detailItem: {
-        marginBottom: 20,
-    },
-    detailLabel: {
-        color: '#555',
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 5,
-    },
-    detailValue: {
-        color: '#333',
-        fontSize: 16,
-    },
-    interestsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-    },
-    interestTag: {
-        backgroundColor: '#5271FF',
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 15,
-        marginRight: 8,
-        marginBottom: 8,
-    },
-    interestText: {
-        color: '#fff',
-        fontSize: 14,
-    },
-    noInterests: {
-        color: '#777',
-        fontSize: 16,
-        opacity: 0.7,
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        padding: 20,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 15,
-        marginHorizontal: 15,
-    },
-    statItem: {
-        alignItems: 'center',
-    },
-    statNumber: {
-        color: '#333',
-        fontSize: 24,
-        fontWeight: 'bold',
-    },
-    statLabel: {
-        color: '#777',
-        fontSize: 16,
-    },
-    memoriesContainer: {
+    container: { flex: 1, backgroundColor: '#fff', }, loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', }, loadingText: { color: '#333', fontSize: 16, }, header: { padding: 20, paddingTop: 40, flexDirection: 'row', justifyContent: 'flex-end', }, addButton: { marginTop: 5, backgroundColor: '#5271FF', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 10, }, buttonText: { color: '#fff', fontSize: 16, fontWeight: '600', }, settingsButton: { padding: 8, backgroundColor: '#f0f0f0', borderRadius: 20, }, profileContainer: { alignItems: 'center', padding: 20, }, profilePic: { width: 120, height: 120, borderRadius: 60, borderWidth: 3, borderColor: '#5271FF', marginBottom: 15, }, userName: { color: '#333', fontSize: 24, fontWeight: 'bold', marginBottom: 5, }, friendCount: { color: '#777', fontSize: 16, }, detailsContainer: { padding: 20, backgroundColor: '#f9f9f9', borderRadius: 15, marginHorizontal: 15, marginBottom: 20, }, detailItem: { marginBottom: 20, }, detailLabel: { color: '#555', fontSize: 16, fontWeight: '600', marginBottom: 5, }, detailValue: { color: '#333', fontSize: 16, }, interestsContainer: { flexDirection: 'row', flexWrap: 'wrap', }, interestTag: { backgroundColor: '#5271FF', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 15, marginRight: 8, marginBottom: 8, }, interestText: { color: '#fff', fontSize: 14, }, noInterests: { color: '#777', fontSize: 16, opacity: 0.7, }, statsContainer: { flexDirection: 'row', justifyContent: 'space-around', padding: 20, backgroundColor: '#f9f9f9', borderRadius: 15, marginHorizontal: 15, }, statItem: { alignItems: 'center', }, statNumber: { color: '#333', fontSize: 24, fontWeight: 'bold', }, statLabel: { color: '#777', fontSize: 16, }, memoriesContainer: { padding: 10, }, memoryItem: { flex: 1 / 3, margin: 5, alignItems: 'center', }, memoryImage: { width: '100%', height: 100, borderRadius: 8, }, memoryTitle: { color: '#333', marginTop: 5, fontSize: 12, },
+    memoryGridContainer: {
         padding: 10,
     },
-    memoryItem: {
-        flex: 1 / 3,
+    memoryGridItem: {
+        flex: 1,
         margin: 5,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 8,
+        padding: 10,
         alignItems: 'center',
     },
-    memoryImage: {
-        width: '100%',
-        height: 100,
-        borderRadius: 8,
+    memoryGridTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 5,
     },
-    memoryTitle: {
-        color: '#333',
-        marginTop: 5,
+    memoryGridUsers: {
         fontSize: 12,
+        color: '#777',
     },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        padding: 10,
+        marginTop: 10,
+    }
 });

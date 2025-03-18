@@ -1,54 +1,131 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, FlatList, Image, Modal } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { Plus } from 'lucide-react-native';
-import { useRoute } from '@react-navigation/native';
 
-const conversations = [
-    { id: '1', name: 'Emma Wilson', lastMessage: 'Received a snap', time: '2m', unread: true, isSnap: true, streak: 48 },
-    { id: '2', name: 'James Rodriguez', lastMessage: 'Hey, what are you up to?', time: '15m', unread: true, isSnap: false },
-    { id: '3', name: 'Olivia Parker', lastMessage: 'Received a snap', time: '1h', unread: false, isSnap: true, streak: 215 },
-    { id: '4', name: 'Ethan Clark', lastMessage: 'Sent a snap', time: '3h', isSnap: true },
-    { id: '5', name: 'Sophia Martinez', lastMessage: 'Thanks!', time: '5h', isSnap: false, streak: 24 },
-];
+const API_URL = 'https://radiantbackend.onrender.com';
 
-const AvatarInitials = ({ name }) => {
-    const initials = name.split(' ').map(part => part.charAt(0)).join('');
-    return (
-        <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-    );
-};
-
-const Mainmessage = () => {
-    const route = useRoute();
+const Mainmessage = ({ route }) => {
     const userName = route.params?.userName || 'User';
+    const navigation = useNavigation();
+    const [conversations, setConversations] = useState([]);
+    const [token, setToken] = useState(null);
+    const [showFriendsModal, setShowFriendsModal] = useState(false);
+    const [friends, setFriends] = useState([]);
+    const [userId, setUserId] = useState(null);
+
+    useEffect(() => {
+        const fetchToken = async () => {
+            const storedToken = await AsyncStorage.getItem('token');
+            if (storedToken) {
+                setToken(storedToken);
+            }
+        };
+        fetchToken();
+    }, []);
+
+    useEffect(() => {
+        if (token) {
+            fetchConversations();
+            fetchFriendsAndSetUserId(); // Combined function
+        }
+    }, [token]);
+
+    const fetchFriendsAndSetUserId = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/getFriends`, { headers: { token } });
+            setFriends(response.data);
+            if (response.data.length > 0) {
+              setUserId(response.data[0]._id);
+            }
+        } catch (error) {
+            console.error('Error fetching friends:', error);
+        }
+    };
+
+    const fetchConversations = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/conversations`, {
+                headers: { token },
+            });
+            setConversations(response.data);
+        } catch (error) {
+            console.error('Error fetching conversations:', error);
+        }
+    };
+
+    const fetchFriends = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/getFriends`, { headers: { token } });
+            setFriends(response.data);
+            setShowFriendsModal(true);
+        } catch (error) {
+            console.error('Error fetching friends:', error);
+        }
+    };
+
+    const handleFriendSelection = async (friend) => {
+        setShowFriendsModal(false);
+        try {
+            if (!userId || !friend?._id) {
+                console.error("Invalid userId or friendId:", userId, friend?._id);
+                return;
+            }
+    
+            const existingConversation = conversations.find(conv =>
+                conv.participants.some(p => p._id === userId) &&
+                conv.participants.some(p => p._id === friend._id)
+            );
+    
+            if (existingConversation) {
+                navigation.navigate('Chat', {
+                    conversationId: existingConversation._id,
+                    participants: existingConversation.participants,
+                });
+            } else {
+                console.log("Creating new conversation with:", userId, friend._id);
+                const response = await axios.post(
+                    `${API_URL}/conversations`,
+                    { participantIds: [userId, friend._id] },  // ✅ Corrected key
+                    { headers: { token } }
+                );
+                console.log("New conversation created:", response.data);
+                navigation.navigate('Chat', {
+                    conversationId: response.data._id,
+                    participants: response.data.participants,
+                });
+            }
+        } catch (error) {
+            console.error('Error handling friend selection:', error.response?.data || error);
+        }
+    };
+    
 
     const renderConversationItem = ({ item }) => (
-        <TouchableOpacity style={styles.conversationItem} onPress={() => console.log(`Navigating to chat with ${item.name}`)}>
-            <AvatarInitials name={item.name} />
+        <TouchableOpacity
+            style={styles.conversationItem}
+            onPress={() =>
+                navigation.navigate('Chat', {
+                    conversationId: item._id,
+                    participants: item.participants,
+                })
+            }
+        >
+            <Image source={{ uri: item.participants[0].profilePic }} style={styles.avatar} />
             <View style={styles.conversationDetails}>
                 <View style={styles.nameRow}>
-                    <Text style={styles.name}>{item.name}</Text>
-                    <Text style={styles.time}>{item.time}</Text>
-                </View>
-                <View style={styles.messageRow}>
-                    {item.isSnap && (
-                        <Text style={[styles.snapIcon, item.unread && styles.unreadIcon]}>
-                            {item.unread ? '■' : '□'}
-                        </Text>
-                    )}
-                    <Text style={[styles.lastMessage, item.unread && styles.unreadMessage]} numberOfLines={1}>
-                        {item.lastMessage}
-                    </Text>
-                    {item.streak > 0 && (
-                        <View style={styles.streakContainer}>
-                            <Text style={styles.streakNumber}>{item.streak}</Text>
-                            <Text style={styles.streakIcon}>🔥</Text>
-                        </View>
-                    )}
+                    <Text style={styles.name}>{item.participants[0].name}</Text>
                 </View>
             </View>
+        </TouchableOpacity>
+    );
+
+    const renderFriendItem = ({ item }) => (
+        <TouchableOpacity style={styles.friendItem} onPress={() => handleFriendSelection(item)}>
+            <Image source={{ uri: item.profilePic }} style={styles.friendAvatar} />
+            <Text>{item.name}</Text>
         </TouchableOpacity>
     );
 
@@ -63,12 +140,32 @@ const Mainmessage = () => {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
-                data={conversations}
-                renderItem={renderConversationItem}
-                keyExtractor={(item) => item.id}
-                style={styles.list}
-            />
+            {conversations.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <TouchableOpacity style={styles.startChatButton} onPress={fetchFriends}>
+                        <Text style={styles.startChatText}>Start Chat</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <FlatList
+                    data={conversations}
+                    renderItem={renderConversationItem}
+                    keyExtractor={(item) => item._id}
+                    style={styles.list}
+                />
+            )}
+
+            <Modal visible={showFriendsModal} animationType="slide" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowFriendsModal(false)}>
+                            <Text style={styles.closeButtonText}>Close</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.modalTitle}>Select a Friend</Text>
+                        <FlatList data={friends} renderItem={renderFriendItem} keyExtractor={(item) => item._id} />
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -80,22 +177,22 @@ const styles = StyleSheet.create({
     newChatButton: {
         width: 56, height: 56, borderRadius: 28, backgroundColor: '#3498db', justifyContent: 'center', alignItems: 'center',
     },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    startChatButton: { backgroundColor: '#3498db', padding: 16, borderRadius: 8 },
+    startChatText: { color: 'white', fontSize: 18 },
     list: { flex: 1 },
     conversationItem: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F2F2F2', alignItems: 'center' },
-    avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#DDD', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    avatarText: { color: '#333', fontWeight: 'bold', fontSize: 16 },
+    avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
     conversationDetails: { flex: 1, justifyContent: 'center' },
     nameRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
     name: { fontSize: 16, fontWeight: '500' },
-    time: { fontSize: 14, color: '#9B9B9B' },
-    messageRow: { flexDirection: 'row', alignItems: 'center' },
-    snapIcon: { marginRight: 6, fontSize: 12, color: '#9B9B9B' },
-    unreadIcon: { color: '#ff0000' },
-    lastMessage: { fontSize: 14, color: '#9B9B9B', flex: 1 },
-    unreadMessage: { fontWeight: '500', color: '#333' },
-    streakContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 6 },
-    streakNumber: { fontSize: 14, marginRight: 4 },
-    streakIcon: { fontSize: 14 },
+    modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
+    modalContent: { backgroundColor: 'white', padding: 20, borderRadius: 10, width: '80%', maxHeight: '80%' },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+    friendItem: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#F2F2F2', alignItems: 'center' },
+    friendAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+    closeButton: { alignSelf: 'flex-end' },
+    closeButtonText: { color: 'blue' },
 });
 
 export default Mainmessage;

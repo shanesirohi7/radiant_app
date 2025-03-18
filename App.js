@@ -15,6 +15,8 @@ import ProfileScreen from './screens/ProfileScreen';
 import OtherProfileScreen from './screens/OtherProfileScreen';
 import Mainmessage from './screens/Mainmessage';
 import MemeFeedScreen from './screens/MemeFeedScreen';
+import MemoryDetailScreen from './screens/MemoryDetailScreen';
+import Chat from './screens/Chat';
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -104,7 +106,9 @@ export default function App() {
                 </Stack.Screen>
                 <Stack.Screen name="Profile" component={ProfileScreen} options={{ animationEnabled: true }} />
                 <Stack.Screen name="Mainmessage" component={Mainmessage} options={{ animationEnabled: true }} />
+                <Stack.Screen name="MemoryDetailScreen" component={MemoryDetailScreen} options={{ animationEnabled: true }} />
                 <Stack.Screen name="MemeFeedScreen" component={MemeFeedScreen} options={{ animationEnabled: true }} />
+                <Stack.Screen name="Chat" component={Chat} options={{ animationEnabled: true }} />
                 <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} options={{ animationEnabled: true }} />
             </Stack.Navigator>
         </NavigationContainer>
