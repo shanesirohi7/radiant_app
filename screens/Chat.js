@@ -15,7 +15,7 @@ import {
 import axios from 'axios';
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Send, ChevronLeft, MoreVertical, Camera, Mic, Smile, Image as ImageIcon } from 'lucide-react-native';
+import { Send, ChevronLeft, MoreVertical, Camera, Mic, Smile, Image as ImageIcon, Check, CheckCheck } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
 const API_URL = 'https://radiantbackend.onrender.com';
@@ -32,6 +32,8 @@ const Chat = ({ route }) => {
   const [socket, setSocket] = useState(null);
   const userId = useRef(null);
   const flatListRef = useRef(null);
+  const [typing, setTyping] = useState(false);
+  const typingTimeoutRef = useRef(null);
 
   // Existing token fetching effect
   useEffect(() => {
@@ -80,6 +82,11 @@ const Chat = ({ route }) => {
         headers: { token },
       });
       setMessages(res.data);
+      
+      // Mark all unread messages as read
+      if (res.data.length > 0) {
+        markMessagesAsRead(res.data);
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
@@ -87,7 +94,58 @@ const Chat = ({ route }) => {
     }
   };
 
-  // Existing socket connection function
+  // New function to mark messages as read
+  const getSenderId = (msg) =>
+    (typeof msg.senderId === 'object' && msg.senderId !== null)
+      ? msg.senderId._id
+      : msg.senderId;
+  
+  const markMessagesAsRead = async (msgs) => {
+    if (!token) {
+      console.error("Token is missing in markMessagesAsRead");
+      return;
+    }
+    try {
+      // Only include messages sent by others that haven't been read by you.
+      const unreadMessageIds = msgs
+        .filter(
+          (msg) =>
+            getSenderId(msg) !== userId.current &&
+            (!msg.readBy || !msg.readBy.includes(userId.current))
+        )
+        .map((msg) => msg._id);
+  
+      if (unreadMessageIds.length === 0) return;
+  
+      console.log("Marking as read:", unreadMessageIds, "Token:", token);
+  
+      await axios.post(
+        `${API_URL}/messages/markAsRead`,
+        { messageIds: unreadMessageIds },
+        { headers: { 'Content-Type': 'application/json', token } }
+      );
+      
+  
+      if (socket) {
+        socket.emit('messages_read', {
+          conversationId,
+          messageIds: unreadMessageIds,
+          readBy: userId.current,
+        });
+      }
+    } catch (error) {
+      // If it's a 400 error (bad request), log a warning and ignore.
+      if (error.response && error.response.status === 400) {
+        console.warn("Mark as read returned 400, ignoring:", error.response.data);
+      } else {
+        console.error("Error marking messages as read:", error);
+      }
+    }
+  };
+  
+  
+
+  // Modified socket connection function
   const connectSocket = () => {
     if (!userId.current || userId.current === 'null') {
       console.error('Invalid userId. Socket connection aborted.');
@@ -103,10 +161,79 @@ const Chat = ({ route }) => {
     });
 
     newSocket.on('new_message', (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      setMessages(prevMessages => [...prevMessages, message]);
+    
+      newSocket.emit('message_delivered', {
+        messageId: message._id,
+        userId: userId.current,
+        conversationId
+      });
+    
+      // Only mark messages as read if they're not from you
+      if (message.senderId._id !== userId.current) {
+        markMessagesAsRead([message]);
+      }
+    });
+    
+    
+    
+    // Listen for delivery status updates
+    newSocket.on('message_delivered_update', ({ messageId, deliveredTo }) => {
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, deliveredTo: [...(msg.deliveredTo || []), ...deliveredTo] }
+            : msg
+        )
+      );
+    });
+    
+    // Listen for read status updates
+    newSocket.on('message_read_update', ({ messageId, readBy }) => {
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, readBy: [...(msg.readBy || []), ...readBy] }
+            : msg
+        )
+      );
+    });
+    
+    // Listen for typing indicators
+    newSocket.on('typing_indicator', ({ userId: typingUserId, isTyping }) => {
+      if (typingUserId !== userId.current) {
+        setTyping(isTyping);
+      }
     });
 
     setSocket(newSocket);
+  };
+
+  // Handle typing indicator
+  const handleTyping = (text) => {
+    setNewMessage(text);
+    
+    if (socket) {
+      socket.emit('typing_indicator', {
+        conversationId,
+        userId: userId.current,
+        isTyping: text.length > 0
+      });
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Set a new timeout to stop the typing indicator after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('typing_indicator', {
+          conversationId,
+          userId: userId.current,
+          isTyping: false
+        });
+      }, 2000);
+    }
   };
 
   // Existing socket cleanup effect
@@ -117,32 +244,68 @@ const Chat = ({ route }) => {
         socket.disconnect();
         console.log('Socket disconnected from ChatScreen');
       }
+      
+      // Clear typing timeout on unmount
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
   }, [socket, conversationId]);
 
-  // Existing send message function
   const sendMessage = async () => {
     if (newMessage.trim()) {
-      try {
-        await axios.post(
-          `${API_URL}/messages/${conversationId}`,
-          { content: newMessage },
-          { headers: { token } }
-        );
-        setNewMessage('');
-      } catch (error) {
-        console.error('Error sending message:', error);
-      }
-    }
-  };
+        try {
+            const response = await axios.post(
+                `${API_URL}/messages/${conversationId}`,
+                { content: newMessage },
+                { headers: { token } }
+            );
 
-  // Updated render message function with new styling
+            setNewMessage('');
+
+            // Do NOT add the message to state immediately
+            // The backend will emit 'new_message', and that will update the state.
+
+            if (socket) {
+                socket.emit('typing_indicator', {
+                    conversationId,
+                    userId: userId.current,
+                    isTyping: false
+                });
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
+    }
+};
+
+
+  // Updated render message function with delivery/read status
   const renderMessage = ({ item }) => {
     const isSent = item.senderId._id === userId.current;
     const time = new Date(item.createdAt).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
+    
+    // Determine message status for sent messages
+    let statusIcon = null;
+    if (isSent) {
+      const isDelivered = item.deliveredTo && 
+                         otherUser && 
+                         item.deliveredTo.includes(otherUser._id);
+      const isRead = item.readBy && 
+                     otherUser && 
+                     item.readBy.includes(otherUser._id);
+      
+      if (isRead) {
+        statusIcon = <CheckCheck width={14} height={14} color="#0084ff" />;
+      } else if (isDelivered) {
+        statusIcon = <Check width={14} height={14} color="#8e8e8e" />;
+      } else {
+        statusIcon = <Check width={14} height={14} color="#8e8e8e" />;
+      }
+    }
     
     return (
       <View style={isSent ? styles.sentContainer : styles.receivedContainer}>
@@ -161,7 +324,10 @@ const Chat = ({ route }) => {
           ]}
         >
           <Text style={styles.messageText}>{item.content}</Text>
-          <Text style={styles.messageTime}>{time}</Text>
+          <View style={styles.messageFooter}>
+            <Text style={styles.messageTime}>{time}</Text>
+            {isSent && statusIcon}
+          </View>
         </View>
       </View>
     );
@@ -197,7 +363,9 @@ const Chat = ({ route }) => {
             />
             <View>
               <Text style={styles.username}>{otherUser.name}</Text>
-              <Text style={styles.status}>Active now</Text>
+              <Text style={styles.status}>
+                {typing ? 'Typing...' : otherUser.online ? 'Active now' : 'Offline'}
+              </Text>
             </View>
           </View>
         )}
@@ -243,7 +411,7 @@ const Chat = ({ route }) => {
               placeholder="Message..."
               placeholderTextColor="#999"
               value={newMessage}
-              onChangeText={setNewMessage}
+              onChangeText={handleTyping}
               multiline
             />
             <TouchableOpacity style={styles.emojiButton}>
@@ -350,10 +518,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     color: '#000',
   },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   messageTime: {
     fontSize: 11,
     color: '#65676b',
-    alignSelf: 'flex-end',
+    marginRight: 4,
   },
   inputContainer: {
     flexDirection: 'row',

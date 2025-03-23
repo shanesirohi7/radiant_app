@@ -177,55 +177,66 @@ const Mainmessage = () => {
 
   const renderConversationItem = ({ item }) => {
     const otherParticipant =
-      item.participants.find((p) => p._id !== currentUserId) || item.participants[0];
+        item.participants.find((p) => p._id !== currentUserId) || item.participants[0];
     const name = otherParticipant?.name || 'Unknown';
     const profilePic = otherParticipant?.profilePic || 'https://via.placeholder.com/150';
-    const lastMsg = item.lastMessage ? item.lastMessage.content : 'Start a conversation...';
-    const lastMsgTime = item.lastMessage ? item.lastMessage.createdAt : item.updatedAt;
-    const relativeTime = lastMsgTime ? getRelativeTime(lastMsgTime) : '';
     
+    const lastMsg = item.lastMessage ? item.lastMessage.content : 'Start a conversation...';
+    const lastMsgTime = item.lastMessage ? new Date(item.lastMessage.createdAt) : new Date(item.updatedAt);
+    
+    // Show real time instead of "now"
+    const formattedTime = lastMsgTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     // Check if the last message was sent by the current user
     const isFromMe = item.lastMessage && item.lastMessage.sender === currentUserId;
 
+    // Count unread messages
+    const unreadMessages = item.messages?.filter(msg => !msg.readBy.includes(currentUserId)).length || 0;
+
+    let displayMessage;
+    let showBlueTick = false;
+
+    if (isFromMe) {
+        displayMessage = `Delivered · ${formattedTime}`;
+    } else if (unreadMessages > 0) {
+        displayMessage = `+${unreadMessages} messages`;
+        showBlueTick = true; // Show blue tick for unread messages
+    } else {
+        displayMessage = lastMsg; // Just show the last message if it's been seen
+    }
+
     return (
-      <TouchableOpacity
-        style={styles.conversationItem}
-        onPress={() =>
-          navigation.navigate('Chat', {
-            conversationId: item._id,
-            participants: item.participants,
-            name: name,
-          })
-        }
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatarContainer}>
-          <Image source={{ uri: profilePic }} style={styles.avatar} />
-          {otherParticipant?.online && <View style={styles.onlineIndicator} />}
-        </View>
-        <View style={styles.messageInfo}>
-          <View style={styles.headerRow}>
-            <Text style={styles.name}>{name}</Text>
-            <Text style={styles.time}>{relativeTime}</Text>
-          </View>
-          <View style={styles.messageRow}>
-            <Text 
-              style={[
-                styles.lastMessage, 
-                item.hasUnread && !isFromMe ? styles.unreadMessage : null
-              ]} 
-              numberOfLines={1}
-            >
-              {isFromMe ? 'You: ' : ''}{lastMsg}
-            </Text>
-            {item.hasUnread && !isFromMe && (
-              <View style={styles.unreadDot} />
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity
+            style={styles.conversationItem}
+            onPress={() =>
+                navigation.navigate('Chat', {
+                    conversationId: item._id,
+                    participants: item.participants,
+                    name: name,
+                })
+            }
+            activeOpacity={0.7}
+        >
+            <View style={styles.avatarContainer}>
+                <Image source={{ uri: profilePic }} style={styles.avatar} />
+                {otherParticipant?.online && <View style={styles.onlineIndicator} />}
+            </View>
+            <View style={styles.messageInfo}>
+                <View style={styles.headerRow}>
+                    <Text style={styles.name}>{name}</Text>
+                    <Text style={styles.time}>{formattedTime}</Text>
+                </View>
+                <View style={styles.messageRow}>
+                    <Text style={styles.lastMessage} numberOfLines={1}>
+                        {displayMessage}
+                    </Text>
+                    {showBlueTick && <View style={styles.unreadDot} />}
+                </View>
+            </View>
+        </TouchableOpacity>
     );
-  };
+};
+
 
   const renderFriend = ({ item }) => (
     <TouchableOpacity 

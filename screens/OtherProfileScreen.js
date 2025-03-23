@@ -37,44 +37,41 @@ const API_URL = 'https://radiantbackend.onrender.com';
 export default function OtherProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { userId: otherUserId } = route.params; // Other user's id
+  const { userId: otherUserId } = route.params;
 
   const [userData, setUserData] = useState(null);
-  const [createdMemories, setCreatedMemories] = useState([]);
-  const [taggedMemories, setTaggedMemories] = useState([]);
+  const [memories, setMemories] = useState([]);
   const [activeTab, setActiveTab] = useState('memories');
   const [isFriend, setIsFriend] = useState(false);
   const [mutualFriends, setMutualFriends] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load other user's profile and details
+  const createdMemories = memories.filter(memory => memory.author._id === otherUserId);
+  const taggedMemories = memories.filter(memory => memory.author._id !== otherUserId);
+  const totalMemoryCount = memories.length;
+
   useEffect(() => {
-    const loadOtherProfile = async () => {
+    const loadProfileData = async () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (!token) {
           navigation.replace('Login');
           return;
         }
-        // Fetch other user's profile data
         const profileRes = await axios.get(`${API_URL}/otherProfile/${otherUserId}`);
         setUserData(profileRes.data);
 
-        // Fetch created and tagged memories from userDetails
-        const detailsRes = await axios.get(`${API_URL}/userDetails/${otherUserId}`);
-        setCreatedMemories(detailsRes.data.createdMemories || []);
-        setTaggedMemories(detailsRes.data.taggedMemories || []);
+        const memoriesRes = await axios.get(`${API_URL}/userMemories/${otherUserId}`, {
+          headers: { token },
+        });
+        setMemories(memoriesRes.data);
 
-        // Fetch our own friends list
         const friendsRes = await axios.get(`${API_URL}/getFriends`, { headers: { token } });
         const myFriends = friendsRes.data || [];
-        // Determine mutual friends (simple intersection based on _id)
         const mutual = myFriends.filter(friend =>
           profileRes.data.friends?.some(f => f._id === friend._id)
         );
         setMutualFriends(mutual);
-
-        // Set friendship status if otherUser is in our friends list
         setIsFriend(myFriends.some(friend => friend._id === otherUserId));
       } catch (error) {
         console.error('Error fetching other profile:', error);
@@ -83,20 +80,15 @@ export default function OtherProfileScreen() {
         setLoading(false);
       }
     };
-    loadOtherProfile();
+
+    loadProfileData();
   }, [otherUserId, navigation]);
 
-  // Merge created and tagged memories (deduplicate)
-  const getAllMemories = () => {
-    const all = [...createdMemories, ...taggedMemories];
-    const unique = all.filter((mem, index, self) =>
-      index === self.findIndex(m => m._id === mem._id)
-    );
-    // Optionally, sort by createdAt descending:
-    return unique.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  };
-
-  const memories = getAllMemories();
+  useEffect(() => {
+    if (activeTab === 'memories' && createdMemories.length === 0 && taggedMemories.length > 0) {
+      setActiveTab('shared');
+    }
+  }, [createdMemories, taggedMemories, activeTab]);
 
   const sendFriendRequest = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -113,26 +105,24 @@ export default function OtherProfileScreen() {
     }
   };
 
-  const renderMemoryGridItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.memoryGridItem}
-      onPress={() => navigation.navigate('MemoryDetailScreen', { memory: item })}
-    >
-      <Image source={{ uri: item.image }} style={styles.memoryGridImage} />
-      <View style={styles.memoryGridOverlay}>
-        <View style={styles.memoryGridStats}>
-          <View style={styles.memoryGridStat}>
-            <Edit3 size={16} color="#fff" />
-            <Text style={styles.memoryGridStatText}>{item.likes}</Text>
-          </View>
-          <View style={styles.memoryGridStat}>
-            <Edit3 size={16} color="#fff" />
-            <Text style={styles.memoryGridStatText}>{item.comments}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderMemoryGridItem = ({ item }) => {
+    const latestPhoto = item.photos && item.photos.length > 0 
+      ? item.photos[item.photos.length - 1] 
+      : 'https://via.placeholder.com/150';
+
+    return (
+      <TouchableOpacity
+        style={styles.memoryGridItem}
+        onPress={() => navigation.navigate('MemoryDetailScreen', { memory: item })}
+      >
+        <Image
+          source={{ uri: latestPhoto }}
+          style={styles.memoryGridImage}
+        />
+        <Text style={styles.memoryGridTitle}>{item.title || 'Untitled Memory'}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -154,7 +144,6 @@ export default function OtherProfileScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      {/* Header with Back Button & More Options */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ChevronLeft size={24} color="#5271FF" />
@@ -166,7 +155,6 @@ export default function OtherProfileScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Cover Photo */}
         <View style={styles.coverPhotoContainer}>
           {userData?.coverPhoto ? (
             <Image source={{ uri: userData.coverPhoto }} style={styles.coverPhoto} />
@@ -175,7 +163,6 @@ export default function OtherProfileScreen() {
           )}
         </View>
 
-        {/* Profile Info */}
         <View style={styles.profileInfoContainer}>
           <View style={styles.profileAvatarContainer}>
             <Image
@@ -189,10 +176,11 @@ export default function OtherProfileScreen() {
               {userData.instagramUsername ? userData.instagramUsername : '@' + (userData.username || '')}
             </Text>
             <Text style={styles.profileBio}>{userData.bio || 'No bio added'}</Text>
-
+            <Text style={styles.profileBio}><Text style={{ fontWeight: 'bold' }}>Relationship:</Text> {userData?.relationshipStatus || 'Prefer Not To Tell'}</Text>
+                        <Text style={styles.profileBio}><Text style={{ fontWeight: 'bold' }}>Class & Sec:</Text> {userData?.class || 'Not '} {userData?.section || 'Listed'}</Text>
             <View style={styles.profileStats}>
               <View style={styles.profileStat}>
-                <Text style={styles.profileStatNumber}>{userData.memoryCount}</Text>
+                <Text style={styles.profileStatNumber}>{totalMemoryCount}</Text>
                 <Text style={styles.profileStatLabel}>Memories</Text>
               </View>
               <View style={styles.profileStatDivider} />
@@ -238,7 +226,6 @@ export default function OtherProfileScreen() {
           </View>
         </View>
 
-        {/* Mutual Friends Section */}
         {mutualFriends.length > 0 && (
           <View style={styles.friendsSection}>
             <View style={styles.sectionHeader}>
@@ -269,7 +256,6 @@ export default function OtherProfileScreen() {
           </View>
         )}
 
-        {/* Tabs */}
         <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'memories' && styles.activeTab]}
@@ -291,16 +277,22 @@ export default function OtherProfileScreen() {
           )}
         </View>
 
-        {/* Memory Grid */}
         {activeTab === 'memories' ? (
           isFriend ? (
-            <FlatList
-              data={memories}
-              renderItem={renderMemoryGridItem}
-              keyExtractor={(item) => item._id}
-              numColumns={2}
-              style={styles.memoryGridContainer}
-            />
+            createdMemories.length > 0 ? (
+              <FlatList
+                data={createdMemories}
+                renderItem={renderMemoryGridItem}
+                keyExtractor={(item) => item._id}
+                numColumns={3}
+                key="memories-3"
+                style={styles.memoryGridContainer}
+              />
+            ) : (
+              <View style={styles.emptyTabContainer}>
+                <Text style={styles.emptyTabText}>No memories created by this user</Text>
+              </View>
+            )
           ) : (
             <View style={styles.emptyTabContainer}>
               <Text style={styles.emptyTabText}>Add as a friend to see memories</Text>
@@ -311,17 +303,27 @@ export default function OtherProfileScreen() {
             </View>
           )
         ) : (
-          <View style={styles.emptyTabContainer}>
-            <Text style={styles.emptyTabText}>No shared memories yet</Text>
-            <TouchableOpacity style={styles.createSharedButton} onPress={() => navigation.navigate('CreateSharedMemory', { friend: userData })}>
-              <PlusSquareIcon size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.createSharedButtonText}>Create Shared Memory</Text>
-            </TouchableOpacity>
-          </View>
+          isFriend && taggedMemories.length > 0 ? (
+            <FlatList
+              data={taggedMemories}
+              renderItem={renderMemoryGridItem}
+              keyExtractor={(item) => item._id}
+              numColumns={3}
+              key="shared-3"
+              style={styles.memoryGridContainer}
+            />
+          ) : (
+            <View style={styles.emptyTabContainer}>
+              <Text style={styles.emptyTabText}>No shared memories yet</Text>
+              <TouchableOpacity style={styles.createSharedButton} onPress={() => navigation.navigate('CreateSharedMemory', { friend: userData })}>
+                <PlusSquareIcon size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.createSharedButtonText}>Create Shared Memory</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Homepage')}>
           <Home size={24} color="#5271FF" />
@@ -433,13 +435,28 @@ const styles = StyleSheet.create({
   activeTab: { borderBottomWidth: 2, borderBottomColor: '#5271FF' },
   tabText: { color: '#777', fontSize: 14 },
   activeTabText: { color: '#5271FF', fontWeight: '500' },
-  memoryGridContainer: { paddingHorizontal: 10, paddingTop: 10 },
-  memoryGridItem: { flex: 1 / 2, margin: 8, padding: 15, backgroundColor: '#f0f0f0', borderRadius: 8 },
-  memoryGridImage: { width: '100%', height: 150, borderRadius: 8 },
-  memoryGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.3)', padding: 6, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
-  memoryGridStats: { flexDirection: 'row', justifyContent: 'space-between' },
-  memoryGridStat: { flexDirection: 'row', alignItems: 'center' },
-  memoryGridStatText: { color: '#fff', marginLeft: 4, fontSize: 12 },
+  memoryGridContainer: { 
+    paddingHorizontal: 5,
+    paddingTop: 10,
+  },
+  memoryGridItem: { 
+    flex: 1/3,
+    margin: 3,
+    alignItems: 'center',
+    maxWidth: '33%',
+  },
+  memoryGridImage: { 
+    width: '100%', 
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 5,
+  },
+  memoryGridTitle: { 
+    color: '#333', 
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   emptyTabContainer: { height: 200, justifyContent: 'center', alignItems: 'center', padding: 20 },
   emptyTabText: { color: '#777', fontSize: 16, marginBottom: 16 },
   addFriendButton: {
@@ -487,4 +504,3 @@ const styles = StyleSheet.create({
     borderColor: '#6c5ce7',
   },
 });
-

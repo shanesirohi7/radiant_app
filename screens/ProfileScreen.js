@@ -22,7 +22,6 @@ import {
   Search,
   PlusSquare,
   Video,
-  // User,  // Not used in bottom nav, we use Image for profile avatar
 } from 'lucide-react-native';
 
 const API_URL = 'https://radiantbackend.onrender.com';
@@ -30,7 +29,7 @@ const API_URL = 'https://radiantbackend.onrender.com';
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
-  const [friends, setFriends] = useState([]); // Friends from getFriends route
+  const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
   const [memoryCount, setMemoryCount] = useState(0);
   const [createdMemories, setCreatedMemories] = useState([]);
@@ -52,7 +51,6 @@ export default function ProfileScreen() {
         setMemoryCount(res.data.memoryCount || 0);
         setCreatedMemories(res.data.createdMemories || []);
         setTaggedMemories(res.data.taggedMemories || []);
-        // Fetch friends using getFriends endpoint
         const friendsRes = await axios.get(`${API_URL}/getFriends`, {
           headers: { token },
         });
@@ -66,28 +64,24 @@ export default function ProfileScreen() {
     loadUser();
   }, [navigation]);
 
-  const renderMemoryGridItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.memoryGridItem}
-      onPress={() =>
-        navigation.navigate('MemoryDetailScreen', { memory: item })
-      }
-    >
-      <Image source={{ uri: item.image }} style={styles.memoryGridImage} />
-      <View style={styles.memoryGridOverlay}>
-        <View style={styles.memoryGridStats}>
-          <View style={styles.memoryGridStat}>
-            <Edit3 size={16} color="#fff" />
-            <Text style={styles.memoryGridStatText}>{item.likes}</Text>
-          </View>
-          <View style={styles.memoryGridStat}>
-            <Edit3 size={16} color="#fff" />
-            <Text style={styles.memoryGridStatText}>{item.comments}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderMemoryGridItem = ({ item }) => {
+    const latestPhoto = item.photos && item.photos.length > 0 
+      ? item.photos[item.photos.length - 1] 
+      : 'https://via.placeholder.com/150';
+
+    return (
+      <TouchableOpacity
+        style={styles.memoryGridItem}
+        onPress={() => navigation.navigate('MemoryDetailScreen', { memory: item })}
+      >
+        <Image
+          source={{ uri: latestPhoto }}
+          style={styles.memoryGridImage}
+        />
+        <Text style={styles.memoryGridTitle}>{item.title || 'Untitled Memory'}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -150,7 +144,9 @@ export default function ProfileScreen() {
                 ? user.instagramUsername
                 : '@' + (user?.username || '')}
             </Text>
-            <Text style={styles.profileBio}>{user?.bio || 'No bio added'}</Text>
+            <Text style={styles.profileBio}>"{user?.bio || 'No bio added'}"</Text>
+            <Text style={styles.profileBio}><Text style={{ fontWeight: 'bold' }}>Relationship:</Text> {user?.relationshipStatus || 'Prefer Not To Tell'}</Text>
+            <Text style={styles.profileBio}><Text style={{ fontWeight: 'bold' }}>Class & Sec:</Text> {user?.class || 'Not '} {user?.section || 'Listed'}</Text>
 
             <View style={styles.profileStats}>
               <View style={styles.profileStat}>
@@ -164,7 +160,10 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.editProfileButton}>
+            <TouchableOpacity 
+              style={styles.editProfileButton}
+              onPress={() => navigation.navigate('EditProfile')} // Add this line
+            >
               <Text style={styles.editProfileButtonText}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
@@ -241,7 +240,17 @@ export default function ProfileScreen() {
             data={createdMemories}
             renderItem={renderMemoryGridItem}
             keyExtractor={(item) => item._id}
-            numColumns={2}
+            numColumns={3}
+            key="memories-3"  // Unique key for 3-column layout
+            style={styles.memoryGridContainer}
+          />
+        ) : activeTab === 'tagged' ? (
+          <FlatList
+            data={taggedMemories}
+            renderItem={renderMemoryGridItem}
+            keyExtractor={(item) => item._id}
+            numColumns={3}
+            key="tagged-3"  // Unique key for 3-column layout
             style={styles.memoryGridContainer}
           />
         ) : (
@@ -349,13 +358,28 @@ const styles = StyleSheet.create({
   activeTab: { borderBottomWidth: 2, borderBottomColor: '#5271FF' },
   tabText: { color: '#777', fontSize: 14 },
   activeTabText: { color: '#5271FF', fontWeight: '500' },
-  memoryGridContainer: { paddingHorizontal: 10, paddingTop: 10 },
-  memoryGridItem: { flex: 1 / 2, margin: 8, padding: 15, backgroundColor: '#f0f0f0', borderRadius: 8 },
-  memoryGridImage: { width: '100%', height: 150, borderRadius: 8 },
-  memoryGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.3)', padding: 6, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
-  memoryGridStats: { flexDirection: 'row', justifyContent: 'space-between' },
-  memoryGridStat: { flexDirection: 'row', alignItems: 'center' },
-  memoryGridStatText: { color: '#fff', marginLeft: 4, fontSize: 12 },
+  memoryGridContainer: { 
+    paddingHorizontal: 5,
+    paddingTop: 10,
+  },
+  memoryGridItem: { 
+    flex: 1/3,
+    margin: 3,
+    alignItems: 'center',
+    maxWidth: '33%',
+  },
+  memoryGridImage: { 
+    width: '100%', 
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 5,
+  },
+  memoryGridTitle: { 
+    color: '#333', 
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   emptyTabContainer: { height: 200, justifyContent: 'center', alignItems: 'center' },
   emptyTabText: { color: '#777', fontSize: 16 },
   bottomNav: {
@@ -385,4 +409,3 @@ const styles = StyleSheet.create({
     borderColor: '#6c5ce7',
   },
 });
-
