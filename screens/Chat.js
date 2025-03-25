@@ -51,29 +51,31 @@ const Chat = ({ route }) => {
   // Existing profile and messages fetch effect
   useEffect(() => {
     if (token) {
-      fetchUserProfile();
-      fetchMessages();
+      fetchUserProfile().then(() => fetchMessages());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+  
 
   // Existing fetchUserProfile function
   const fetchUserProfile = async () => {
     try {
       const res = await axios.get(`${API_URL}/profile`, { headers: { token } });
+      if (!res.data?._id) throw new Error("Invalid profile data received.");
+  
       userId.current = res.data._id;
-      // Determine the other participant dynamically
+      console.log("✅ userId.current set:", userId.current);
+  
       if (participants && participants.length > 0) {
-        const other =
-          participants.find((p) => p._id !== res.data._id) || participants[0];
+        const other = participants.find((p) => p._id !== userId.current) || participants[0];
         setOtherUser(other);
       }
-      // After profile is fetched, connect socket
+  
       connectSocket();
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error("❌ Error fetching user profile:", error);
     }
   };
+  
 
   // Existing fetchMessages function
   const fetchMessages = async () => {
@@ -93,58 +95,62 @@ const Chat = ({ route }) => {
       setLoading(false);
     }
   };
-
-  // New function to mark messages as read
   const getSenderId = (msg) =>
-    (typeof msg.senderId === 'object' && msg.senderId !== null)
+    typeof msg.senderId === "object" && msg.senderId !== null
       ? msg.senderId._id
       : msg.senderId;
   
-  const markMessagesAsRead = async (msgs) => {
-    if (!token) {
-      console.error("Token is missing in markMessagesAsRead");
-      return;
-    }
-    try {
-      // Only include messages sent by others that haven't been read by you.
-      const unreadMessageIds = msgs
-        .filter(
-          (msg) =>
-            getSenderId(msg) !== userId.current &&
-            (!msg.readBy || !msg.readBy.includes(userId.current))
-        )
-        .map((msg) => msg._id);
-  
-      if (unreadMessageIds.length === 0) return;
-  
-      console.log("Marking as read:", unreadMessageIds, "Token:", token);
-  
-      await axios.post(
-        `${API_URL}/messages/markAsRead`,
-        { messageIds: unreadMessageIds },
-        { headers: { 'Content-Type': 'application/json', token } }
-      );
+      const markMessagesAsRead = async (msgs) => {
+        if (!token) {
+          console.error("Token is missing in markMessagesAsRead");
+          return;
+        }
+      
+        if (!userId.current) {
+          console.error("❌ userId.current is NULL, preventing marking as read!");
+          return;
+        }
+      
+        try {
+          if (typeof getSenderId !== "function") {
+            console.error("getSenderId is not defined!");
+            return;
+          }
+      
+          const unreadMessageIds = msgs
+            .filter((msg) => {
+              const senderId = getSenderId(msg);
+              console.log("Checking message:", msg._id, "Sender:", senderId, "User:", userId.current);
+              return (
+                senderId !== userId.current && // ✅ Only messages sent by the OTHER user
+                (!msg.readBy || !msg.readBy.includes(userId.current))
+              );
+            })
+            .map((msg) => msg._id);
+      
+          if (unreadMessageIds.length === 0) return;
+      
+          console.log("✅ Marking as read (filtered):", unreadMessageIds);
+      
+          await axios.post(
+            `${API_URL}/messages/markAsRead`,
+            { messageIds: unreadMessageIds },
+            { headers: { 'Content-Type': 'application/json', token } }
+          );
+      
+          if (socket) {
+            socket.emit("messages_read", {
+              conversationId,
+              messageIds: unreadMessageIds,
+              readBy: userId.current,
+            });
+          }
+        } catch (error) {
+          console.error("❌ Error marking messages as read:", error);
+        }
+      };
       
   
-      if (socket) {
-        socket.emit('messages_read', {
-          conversationId,
-          messageIds: unreadMessageIds,
-          readBy: userId.current,
-        });
-      }
-    } catch (error) {
-      // If it's a 400 error (bad request), log a warning and ignore.
-      if (error.response && error.response.status === 400) {
-        console.warn("Mark as read returned 400, ignoring:", error.response.data);
-      } else {
-        console.error("Error marking messages as read:", error);
-      }
-    }
-  };
-  
-  
-
   // Modified socket connection function
   const connectSocket = () => {
     if (!userId.current || userId.current === 'null') {
