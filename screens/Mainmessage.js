@@ -19,6 +19,80 @@ import { MessageCircle, X, Search, Plus } from 'lucide-react-native';
 
 const API_URL = 'https://radiantbackend.onrender.com';
 
+// Define themes directly in the file (same as other screens)
+const themes = {
+  light: {
+    background: '#FFFFFF',
+    primary: '#8ECAE6',
+    secondary: '#FF007F',
+    text: '#000000',
+    accent: '#58D68D',
+  },
+  dark: {
+    background: '#121212',
+    primary: '#BB86FC',
+    secondary: '#03DAC6',
+    text: '#EAEAEA',
+    accent: '#CF6679',
+  },
+  cyberpunk: {
+    background: '#000000',
+    primary: '#FF007F',
+    secondary: '#00FFFF',
+    text: '#FFFFFF',
+    accent: '#FFD700',
+  },
+  bumblebee: {
+    background: '#FFF4A3',
+    primary: '#FFC107',
+    secondary: '#FF9800',
+    text: '#000000',
+    accent: '#6A1B9A',
+  },
+  synthwave: {
+    background: '#1A1A40',
+    primary: '#FF00FF',
+    secondary: '#00A3FF',
+    text: '#F8F8F2',
+    accent: '#FFD700',
+  },
+  luxury: {
+    background: '#000000',
+    primary: '#FFFFFF',
+    secondary: '#1A1A1A',
+    text: '#FFD700',
+    accent: '#800080',
+  },
+  halloween: {
+    background: '#181818',
+    primary: '#FF8C00',
+    secondary: '#800080',
+    text: '#FFFFFF',
+    accent: '#008000',
+  },
+  aqua: {
+    background: '#00FFFF',
+    primary: '#6A5ACD',
+    secondary: '#FFD700',
+    text: '#000000',
+    accent: '#4682B4',
+  },
+  dracula: {
+    background: '#282A36',
+    primary: '#BD93F9',
+    secondary: '#FFB86C',
+    text: '#F8F8F2',
+    accent: '#50FA7B',
+  },
+  forest: {
+    background: '#0B3D02',
+    primary: '#4CAF50',
+    secondary: '#3E8E41',
+    text: '#FFFFFF',
+    accent: '#228B22',
+  },
+};
+
 // Helper to get relative time (e.g., "5h ago")
 const getRelativeTime = (dateString) => {
   const date = new Date(dateString);
@@ -49,7 +123,23 @@ const Mainmessage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingFriends, setLoadingFriends] = useState(true);
+  const [currentTheme, setCurrentTheme] = useState(themes.light); // Default to light theme
   const navigation = useNavigation();
+
+  // Load theme from AsyncStorage on mount
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const storedTheme = await AsyncStorage.getItem('theme');
+        if (storedTheme && themes[storedTheme]) {
+          setCurrentTheme(themes[storedTheme]);
+        }
+      } catch (error) {
+        console.error('Failed to load theme:', error);
+      }
+    };
+    loadTheme();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -177,7 +267,7 @@ const Mainmessage = () => {
 
   const renderConversationItem = ({ item }) => {
     const otherParticipant =
-        item.participants.find((p) => p._id !== currentUserId) || item.participants[0];
+      item.participants.find((p) => p._id !== currentUserId) || item.participants[0];
     const name = otherParticipant?.name || 'Unknown';
     const profilePic = otherParticipant?.profilePic || 'https://via.placeholder.com/150';
     
@@ -191,122 +281,131 @@ const Mainmessage = () => {
     const isFromMe = item.lastMessage && item.lastMessage.sender === currentUserId;
 
     // Count unread messages
-    const unreadMessages = item.messages?.filter(msg => !msg.readBy.includes(currentUserId)).length || 0;
+    const unreadMessages = item.messages?.filter((msg) => !msg.readBy.includes(currentUserId)).length || 0;
 
     let displayMessage;
     let showBlueTick = false;
 
     if (isFromMe) {
-        displayMessage = `Delivered · ${formattedTime}`;
+      displayMessage = `Delivered · ${formattedTime}`;
     } else if (unreadMessages > 0) {
-        displayMessage = `+${unreadMessages} messages`;
-        showBlueTick = true; // Show blue tick for unread messages
+      displayMessage = `+${unreadMessages} messages`;
+      showBlueTick = true; // Show blue tick for unread messages
     } else {
-        displayMessage = lastMsg; // Just show the last message if it's been seen
+      displayMessage = lastMsg; // Just show the last message if it's been seen
     }
 
     return (
-        <TouchableOpacity
-            style={styles.conversationItem}
-            onPress={() =>
-                navigation.navigate('Chat', {
-                    conversationId: item._id,
-                    participants: item.participants,
-                    name: name,
-                })
-            }
-            activeOpacity={0.7}
-        >
-            <View style={styles.avatarContainer}>
-                <Image source={{ uri: profilePic }} style={styles.avatar} />
-                {otherParticipant?.online && <View style={styles.onlineIndicator} />}
-            </View>
-            <View style={styles.messageInfo}>
-                <View style={styles.headerRow}>
-                    <Text style={styles.name}>{name}</Text>
-                    <Text style={styles.time}>{formattedTime}</Text>
-                </View>
-                <View style={styles.messageRow}>
-                    <Text style={styles.lastMessage} numberOfLines={1}>
-                        {displayMessage}
-                    </Text>
-                    {showBlueTick && <View style={styles.unreadDot} />}
-                </View>
-            </View>
-        </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.conversationItem, { backgroundColor: currentTheme.background, borderBottomColor: currentTheme.secondary }]}
+        onPress={() =>
+          navigation.navigate('Chat', {
+            conversationId: item._id,
+            participants: item.participants,
+            name: name,
+          })
+        }
+        activeOpacity={0.7}
+      >
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: profilePic }}
+            style={[styles.avatar, { borderColor: currentTheme.accent }]}
+          />
+          {otherParticipant?.online && <View style={[styles.onlineIndicator, { backgroundColor: currentTheme.accent }]} />}
+        </View>
+        <View style={styles.messageInfo}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.name, { color: currentTheme.text }]}>{name}</Text>
+            <Text style={[styles.time, { color: currentTheme.text }]}>{formattedTime}</Text>
+          </View>
+          <View style={styles.messageRow}>
+            <Text style={[styles.lastMessage, { color: currentTheme.text }]} numberOfLines={1}>
+              {displayMessage}
+            </Text>
+            {showBlueTick && <View style={[styles.unreadDot, { backgroundColor: currentTheme.primary }]} />}
+          </View>
+        </View>
+      </TouchableOpacity>
     );
-};
-
+  };
 
   const renderFriend = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.friendItem} 
+    <TouchableOpacity
+      style={[styles.friendItem, { borderBottomColor: currentTheme.secondary }]}
       onPress={() => startConversation(item)}
       activeOpacity={0.7}
     >
       <View style={styles.friendAvatarContainer}>
-        <Image 
-          source={{ uri: item.profilePic || 'https://via.placeholder.com/50' }} 
-          style={styles.friendAvatar} 
+        <Image
+          source={{ uri: item.profilePic || 'https://via.placeholder.com/50' }}
+          style={styles.friendAvatar}
         />
-        {item.online && <View style={styles.friendOnlineIndicator} />}
+        {item.online && <View style={[styles.friendOnlineIndicator, { backgroundColor: currentTheme.accent }]} />}
       </View>
       <View style={styles.friendInfo}>
-        <Text style={styles.friendName}>{item.name}</Text>
-        <Text style={styles.friendStatus}>
+        <Text style={[styles.friendName, { color: currentTheme.text }]}>{item.name}</Text>
+        <Text style={[styles.friendStatus, { color: currentTheme.text }]}>
           {item.online ? 'Online' : 'Offline'}
         </Text>
       </View>
-      <View style={styles.startChatButton}>
-        <MessageCircle size={16} color="#5271FF" />
+      <View style={[styles.startChatButton, { backgroundColor: currentTheme.secondary }]}>
+        <MessageCircle size={16} color={currentTheme.primary} />
       </View>
     </TouchableOpacity>
   );
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <MessageCircle size={60} color="#ddd" />
-      <Text style={styles.emptyText}>No conversations yet</Text>
-      <Text style={styles.emptySubtext}>Start messaging with your friends!</Text>
-      <TouchableOpacity 
-        style={styles.startButton}
+      <MessageCircle size={60} color={currentTheme.secondary} />
+      <Text style={[styles.emptyText, { color: currentTheme.text }]}>No conversations yet</Text>
+      <Text style={[styles.emptySubtext, { color: currentTheme.text }]}>
+        Start messaging with your friends!
+      </Text>
+      <TouchableOpacity
+        style={[styles.startButton, { backgroundColor: currentTheme.primary }]}
         onPress={openModal}
       >
-        <Text style={styles.startButtonText}>Start a chat</Text>
+        <Text style={[styles.startButtonText, { color: currentTheme.background }]}>
+          Start a chat
+        </Text>
       </TouchableOpacity>
     </View>
   );
 
   const renderHeader = () => (
     <View style={styles.searchContainer}>
-      <TouchableOpacity 
-        style={styles.searchBar}
+      <TouchableOpacity
+        style={[styles.searchBar, { backgroundColor: currentTheme.secondary }]}
         onPress={() => navigation.navigate('SearchUsers')}
       >
-        <Search size={16} color="#999" />
-        <Text style={styles.searchText}>Search</Text>
+        <Search size={16} color={currentTheme.text} />
+        <Text style={[styles.searchText, { color: currentTheme.text }]}>Search</Text>
       </TouchableOpacity>
     </View>
   );
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#5271FF" />
+      <SafeAreaView style={[styles.loadingContainer, { backgroundColor: currentTheme.background }]}>
+        <ActivityIndicator size="large" color={currentTheme.primary} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]}>
+      <StatusBar
+        barStyle={currentTheme.text === '#000000' ? 'dark-content' : 'light-content'}
+        backgroundColor={currentTheme.background}
+      />
+      <View style={[styles.header, { backgroundColor: currentTheme.background, borderBottomColor: currentTheme.secondary }]}>
+        <Text style={[styles.headerTitle, { color: currentTheme.text }]}>Messages</Text>
         <TouchableOpacity
-          style={styles.newMessageButton}
+          style={[styles.newMessageButton, { backgroundColor: currentTheme.primary }]}
           onPress={openModal}
         >
-          <Plus size={20} color="#fff" />
+          <Plus size={20} color={currentTheme.background} />
         </TouchableOpacity>
       </View>
       <FlatList
@@ -317,59 +416,66 @@ const Mainmessage = () => {
         ListEmptyComponent={renderEmptyComponent}
         contentContainerStyle={[
           styles.listContent,
-          conversations.length === 0 && styles.emptyList
+          conversations.length === 0 && styles.emptyList,
         ]}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            tintColor="#5271FF"
-            colors={["#5271FF"]}
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={currentTheme.primary}
+            colors={[currentTheme.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       />
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={openModal}>
-        <MessageCircle size={24} color="#fff" />
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: currentTheme.primary }]}
+        onPress={openModal}
+      >
+        <MessageCircle size={24} color={currentTheme.background} />
       </TouchableOpacity>
 
       {/* Modal for Friends List */}
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Message</Text>
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: currentTheme.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: currentTheme.secondary }]}>
+            <Text style={[styles.modalTitle, { color: currentTheme.text }]}>New Message</Text>
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: currentTheme.secondary }]}
               onPress={() => setModalVisible(false)}
             >
-              <X size={20} color="#1A1A1A" />
+              <X size={20} color={currentTheme.text} />
             </TouchableOpacity>
           </View>
-          
-          <View style={styles.modalSearchContainer}>
-            <TouchableOpacity style={styles.modalSearchBar}>
-              <Search size={16} color="#999" />
-              <Text style={styles.searchText}>Search friends</Text>
+
+          <View style={[styles.modalSearchContainer, { borderBottomColor: currentTheme.secondary }]}>
+            <TouchableOpacity style={[styles.modalSearchBar, { backgroundColor: currentTheme.secondary }]}>
+              <Search size={16} color={currentTheme.text} />
+              <Text style={[styles.searchText, { color: currentTheme.text }]}>Search friends</Text>
             </TouchableOpacity>
           </View>
-          
+
           {loadingFriends ? (
             <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="large" color="#5271FF" />
+              <ActivityIndicator size="large" color={currentTheme.primary} />
             </View>
           ) : friends.length === 0 ? (
             <View style={styles.noFriendsContainer}>
-              <Text style={styles.noFriendsText}>No friends found</Text>
-              <Text style={styles.noFriendsSubtext}>Add some friends to start messaging</Text>
-              <TouchableOpacity 
-                style={styles.addFriendsButton}
+              <Text style={[styles.noFriendsText, { color: currentTheme.text }]}>No friends found</Text>
+              <Text style={[styles.noFriendsSubtext, { color: currentTheme.text }]}>
+                Add some friends to start messaging
+              </Text>
+              <TouchableOpacity
+                style={[styles.addFriendsButton, { backgroundColor: currentTheme.primary }]}
                 onPress={() => {
                   setModalVisible(false);
                   navigation.navigate('FindFriends');
                 }}
               >
-                <Text style={styles.addFriendsButtonText}>Find Friends</Text>
+                <Text style={[styles.addFriendsButtonText, { color: currentTheme.background }]}>
+                  Find Friends
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -390,13 +496,11 @@ const Mainmessage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -404,18 +508,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1A1A1A',
     letterSpacing: -0.5,
   },
   newMessageButton: {
-    backgroundColor: '#5271FF',
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -437,14 +537,12 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F2F5',
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
   searchText: {
     marginLeft: 8,
-    color: '#8E8E93',
     fontSize: 15,
   },
   listContent: {
@@ -460,9 +558,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
   },
   avatarContainer: {
     position: 'relative',
@@ -472,9 +568,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F0F2F5',
     borderWidth: 1.5,
-    borderColor: '#F0F2F5',
   },
   onlineIndicator: {
     position: 'absolute',
@@ -483,7 +577,6 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#4CAF50',
     borderWidth: 2,
     borderColor: '#fff',
   },
@@ -505,35 +598,29 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
     letterSpacing: -0.3,
   },
   time: {
     fontSize: 13,
-    color: '#8E8E93',
     fontWeight: '500',
   },
   lastMessage: {
     fontSize: 12,
-    color: '#8E8E93',
     flex: 1,
   },
   unreadMessage: {
-    color: '#1A1A1A',
     fontWeight: '500',
   },
   unreadDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#5271FF',
     marginLeft: 8,
   },
   fab: {
     position: 'absolute',
     bottom: 24,
     right: 24,
-    backgroundColor: '#5271FF',
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -556,30 +643,25 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 15,
-    color: '#8E8E93',
     marginTop: 8,
     textAlign: 'center',
   },
   startButton: {
-    backgroundColor: '#5271FF',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 20,
     marginTop: 24,
   },
   startButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -588,18 +670,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
   },
   modalCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0F2F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -607,12 +686,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
   },
   modalSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F2F5',
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -632,7 +709,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
   },
   friendAvatarContainer: {
     position: 'relative',
@@ -642,7 +718,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#F0F2F5',
   },
   friendOnlineIndicator: {
     position: 'absolute',
@@ -651,7 +726,6 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4CAF50',
     borderWidth: 2,
     borderColor: '#fff',
   },
@@ -661,18 +735,15 @@ const styles = StyleSheet.create({
   friendName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
     marginBottom: 2,
   },
   friendStatus: {
     fontSize: 14,
-    color: '#8E8E93',
   },
   startChatButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0F2F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -685,23 +756,19 @@ const styles = StyleSheet.create({
   noFriendsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
     marginBottom: 8,
   },
   noFriendsSubtext: {
     fontSize: 15,
-    color: '#8E8E93',
     textAlign: 'center',
     marginBottom: 24,
   },
   addFriendsButton: {
-    backgroundColor: '#5271FF',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 20,
   },
   addFriendsButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
